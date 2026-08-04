@@ -38,6 +38,11 @@ background:radial-gradient(1200px 800px at 50% -10%,#1a1a2e 0%,#141428 55%,#0d0d
 .loading{text-align:center;padding:60px;color:rgba(255,255,255,.5)}
 .loading .spin{width:36px;height:36px;border:3px solid rgba(255,255,255,.15);border-top-color:#ffd700;border-radius:50%;margin:0 auto 14px;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.error-box{text-align:center;padding:60px 20px;color:rgba(255,255,255,.65)}
+.error-box .big{font-size:42px;display:block;margin-bottom:12px}
+.error-box #errMsg{font-size:15px;margin-bottom:20px}
+.retry-btn{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#222;border:none;padding:12px 30px;border-radius:24px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
+.retry-btn:active{transform:scale(.96)}
 footer.app-footer{text-align:center;padding:20px;color:rgba(255,255,255,.35);font-size:11px}
 @media(max-width:480px){.grid{grid-template-columns:repeat(3,1fr)}}
 </style>
@@ -51,6 +56,11 @@ footer.app-footer{text-align:center;padding:20px;color:rgba(255,255,255,.35);fon
   <div class="loading" id="loading"><div class="spin"></div>載入中…</div>
   <div class="grid" id="grid" style="display:none"></div>
   <div class="empty" id="empty" style="display:none"><span class="big">📭</span>暫時冇圖片</div>
+  <div class="error-box" id="errorBox" style="display:none">
+    <span class="big">⚠️</span>
+    <div id="errMsg">載入失敗</div>
+    <button class="retry-btn" onclick="load()">🔄 重試</button>
+  </div>
 </div>
 
 <!-- lightbox -->
@@ -77,22 +87,48 @@ let items = [];
 let idx = 0;
 
 async function load(){
-  try{
-    const r = await fetch(BASE + '/gallery/manifest.json?t=' + Date.now());
-    const d = await r.json();
-    items = d.items || [];
-  }catch(e){
-    items = [];
-  }
-  document.getElementById('loading').style.display = 'none';
+  const loading = document.getElementById('loading');
   const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');
-  document.getElementById('count').textContent = items.length + ' 張';
+  const errBox = document.getElementById('errorBox');
+  loading.style.display = 'block';
+  grid.style.display = 'none';
+  empty.style.display = 'none';
+  errBox.style.display = 'none';
+  try{
+    // 8 秒 timeout，唔好永遠「載入中」
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    // 先試同源 manifest（GitHub Pages — 公司網絡都通），失敗先用 R2
+    let d = null;
+    try{
+      const r = await fetch('./manifest.json?t=' + Date.now(), {signal: ctrl.signal});
+      if(r.ok) d = await r.json();
+    }catch(e){ /* fallback below */ }
+    if(!d){
+      const r2 = await fetch(BASE + '/gallery/manifest.json?t=' + Date.now(), {signal: ctrl.signal});
+      if(!r2.ok) throw new Error('HTTP ' + r2.status);
+      d = await r2.json();
+    }
+    clearTimeout(timer);
+    items = d.items || [];
+  }catch(e){
+    // fetch 失敗 ≠ 冇圖 — 顯示錯誤 + 重試
+    loading.style.display = 'none';
+    errBox.style.display = 'block';
+    document.getElementById('errMsg').textContent =
+      '載入失敗（' + (e.name === 'AbortError' ? '逾時' : '網絡') + '）— 公司網絡可能封鎖圖片伺服器，請用手機或其他網絡開啟';
+    document.getElementById('count').textContent = '—';
+    return;
+  }
+  loading.style.display = 'none';
   if(!items.length){
     empty.style.display = 'block';
+    document.getElementById('count').textContent = '0 張';
     return;
   }
   grid.style.display = 'grid';
+  document.getElementById('count').textContent = items.length + ' 張';
   items.forEach((it, i) => {
     const card = document.createElement('div');
     card.className = 'card';
