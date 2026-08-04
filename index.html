@@ -81,7 +81,7 @@ footer.app-footer{text-align:center;padding:20px;color:rgba(255,255,255,.35);fon
 <script>
 const BASE = 'https://img.hermesagent.de5.net';
 // manifest key 已含 'gallery/' 前綴，所以圖片 URL = BASE + '/' + key
-const VER = 'v5';
+const VER = 'v6';
 document.getElementById('ver').textContent = VER + ' · ' + new Date().toISOString().slice(0,10);
 let items = [];
 let idx = 0;
@@ -157,16 +157,20 @@ function openLB(i){
   idx = i;
   const it = items[i];
   const img = document.getElementById('lbImg');
-  // 大圖：先試同源縮圖放大（公司網絡通），失敗 fallback R2 原圖
+  // 大圖：先試同源原圖（公司網絡通、清晰），fallback 同源縮圖 → R2 原圖
   img.dataset.fb = '';
-  img.src = './thumbs/' + it.id + '.jpg?t=' + encodeURIComponent(it.modified);
+  img.src = './full/' + it.id + (it.ext || '.jpg') + '?t=' + encodeURIComponent(it.modified);
   img.onerror = () => {
+    if(img.dataset.fb === 'thumb'){ img.src = BASE + '/' + it.full + '?t=' + encodeURIComponent(it.modified); return; }
     if(img.dataset.fb){ return; }
-    img.dataset.fb = '1';
-    img.src = BASE + '/' + it.full + '?t=' + encodeURIComponent(it.modified);
+    img.dataset.fb = 'thumb';
+    img.src = './thumbs/' + it.id + '.jpg?t=' + encodeURIComponent(it.modified);
   };
   document.getElementById('lbName').textContent = it.name;
-  document.getElementById('lbDownload').href = BASE + '/' + it.full + '?download=1&t=' + encodeURIComponent(it.modified);
+  // 下載：同源原圖（公司網絡都下載到）+ download 屬性強制下載
+  const dl = document.getElementById('lbDownload');
+  dl.href = './full/' + it.id + (it.ext || '.jpg') + '?download=1&t=' + encodeURIComponent(it.modified);
+  dl.setAttribute('download', it.name);
   updateNav();
   document.getElementById('lightbox').classList.add('show');
 }
