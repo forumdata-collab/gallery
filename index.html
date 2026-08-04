@@ -70,12 +70,13 @@ footer.app-footer{text-align:center;padding:20px;color:rgba(255,255,255,.35);fon
 
 <script>
 const BASE = 'https://img.hermesagent.de5.net';
+// manifest key 已含 'gallery/' 前綴，所以圖片 URL = BASE + '/' + key
 let items = [];
 let idx = 0;
 
 async function load(){
   try{
-    const r = await fetch(BASE + '/manifest.json?t=' + Date.now());
+    const r = await fetch(BASE + '/gallery/manifest.json?t=' + Date.now());
     const d = await r.json();
     items = d.items || [];
   }catch(e){
