@@ -66,11 +66,13 @@ footer.app-footer{text-align:center;padding:20px;color:rgba(255,255,255,.35);fon
   <button class="lb-nav lb-next" id="lbNext" onclick="navLB(1)">›</button>
 </div>
 
-<footer class="app-footer">圖片存放於 Cloudflare R2 · 自動同步自 Google Drive</footer>
+<footer class="app-footer">圖片存放於 Cloudflare R2 · 自動同步自 Google Drive · <span id="ver"></span></footer>
 
 <script>
 const BASE = 'https://img.hermesagent.de5.net';
 // manifest key 已含 'gallery/' 前綴，所以圖片 URL = BASE + '/' + key
+const VER = 'v3';
+document.getElementById('ver').textContent = 'v' + VER + ' · ' + new Date().toISOString().slice(0,10);
 let items = [];
 let idx = 0;
 
