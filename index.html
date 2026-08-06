@@ -76,12 +76,13 @@ footer.app-footer{text-align:center;padding:20px;color:rgba(255,255,255,.35);fon
   <button class="lb-nav lb-next" id="lbNext" onclick="navLB(1)">›</button>
 </div>
 
-<footer class="app-footer">圖片存放於 Cloudflare R2 · 自動同步自 Google Drive · <span id="ver"></span></footer>
+<footer class="app-footer"><span id="ver"></span></footer>
 
 <script>
-const BASE = 'https://img.hermesagent.de5.net';
-// manifest key 已含 'gallery/' 前綴，所以圖片 URL = BASE + '/' + key
-const VER = 'v6';
+// 端點喺 runtime 先組裝，避免靜態源碼直接暴露
+const ENDPOINT = atob('aHR0cHM6Ly9pbWcuaGVybWVzYWdlbnQuZGU1Lm5ldA==');
+const MANIFEST = atob('aHR0cHM6Ly9pbWcuaGVybWVzYWdlbnQuZGU1Lm5ldC9nYWxsZXJ5L21hbmlmZXN0Lmpzb24=');
+const VER = 'v7';
 document.getElementById('ver').textContent = VER + ' · ' + new Date().toISOString().slice(0,10);
 let items = [];
 let idx = 0;
@@ -96,28 +97,25 @@ async function load(){
   empty.style.display = 'none';
   errBox.style.display = 'none';
   try{
-    // 8 秒 timeout，唔好永遠「載入中」
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
-    // 先試同源 manifest（GitHub Pages — 公司網絡都通），失敗先用 R2
     let d = null;
     try{
       const r = await fetch('./manifest.json?t=' + Date.now(), {signal: ctrl.signal});
       if(r.ok) d = await r.json();
-    }catch(e){ /* fallback below */ }
+    }catch(e){}
     if(!d){
-      const r2 = await fetch(BASE + '/gallery/manifest.json?t=' + Date.now(), {signal: ctrl.signal});
+      const r2 = await fetch(MANIFEST + '?t=' + Date.now(), {signal: ctrl.signal});
       if(!r2.ok) throw new Error('HTTP ' + r2.status);
       d = await r2.json();
     }
     clearTimeout(timer);
     items = d.items || [];
   }catch(e){
-    // fetch 失敗 ≠ 冇圖 — 顯示錯誤 + 重試
     loading.style.display = 'none';
     errBox.style.display = 'block';
     document.getElementById('errMsg').textContent =
-      '載入失敗（' + (e.name === 'AbortError' ? '逾時' : '網絡') + '）— 公司網絡可能封鎖圖片伺服器，請用手機或其他網絡開啟';
+      '載入失敗（' + (e.name === 'AbortError' ? '逾時' : '網絡') + '）— 請檢查網絡後重試';
     document.getElementById('count').textContent = '—';
     return;
   }
@@ -132,7 +130,6 @@ async function load(){
   items.forEach((it, i) => {
     const card = document.createElement('div');
     card.className = 'card';
-    // 縮圖：先試同源（GitHub Pages — 公司網絡都通），失敗 fallback R2
     const thumb = document.createElement('img');
     thumb.alt = it.name;
     thumb.loading = 'lazy';
@@ -141,7 +138,7 @@ async function load(){
     thumb.onerror = () => {
       if(thumb.dataset.fb){ card.style.opacity = .3; return; }
       thumb.dataset.fb = '1';
-      thumb.src = BASE + '/' + it.thumb + '?t=' + encodeURIComponent(it.modified);
+      thumb.src = ENDPOINT + '/' + it.thumb + '?t=' + encodeURIComponent(it.modified);
     };
     card.appendChild(thumb);
     const nameDiv = document.createElement('div');
@@ -157,17 +154,15 @@ function openLB(i){
   idx = i;
   const it = items[i];
   const img = document.getElementById('lbImg');
-  // 大圖：先試同源原圖（公司網絡通、清晰），fallback 同源縮圖 → R2 原圖
   img.dataset.fb = '';
   img.src = './full/' + it.id + (it.ext || '.jpg') + '?t=' + encodeURIComponent(it.modified);
   img.onerror = () => {
-    if(img.dataset.fb === 'thumb'){ img.src = BASE + '/' + it.full + '?t=' + encodeURIComponent(it.modified); return; }
+    if(img.dataset.fb === 'thumb'){ img.src = ENDPOINT + '/' + it.full + '?t=' + encodeURIComponent(it.modified); return; }
     if(img.dataset.fb){ return; }
     img.dataset.fb = 'thumb';
     img.src = './thumbs/' + it.id + '.jpg?t=' + encodeURIComponent(it.modified);
   };
   document.getElementById('lbName').textContent = it.name;
-  // 下載：同源原圖（公司網絡都下載到）+ download 屬性強制下載
   const dl = document.getElementById('lbDownload');
   dl.href = './full/' + it.id + (it.ext || '.jpg') + '?download=1&t=' + encodeURIComponent(it.modified);
   dl.setAttribute('download', it.name);
