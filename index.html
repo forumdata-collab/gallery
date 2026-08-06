@@ -82,7 +82,7 @@ footer.app-footer{text-align:center;padding:20px;color:rgba(255,255,255,.35);fon
 // 端點喺 runtime 先組裝，避免靜態源碼直接暴露
 const ENDPOINT = atob('aHR0cHM6Ly9pbWcuaGVybWVzYWdlbnQuZGU1Lm5ldA==');
 const MANIFEST = atob('aHR0cHM6Ly9pbWcuaGVybWVzYWdlbnQuZGU1Lm5ldC9nYWxsZXJ5L21hbmlmZXN0Lmpzb24=');
-const VER = 'v7';
+const VER = 'v8';
 document.getElementById('ver').textContent = VER + ' · ' + new Date().toISOString().slice(0,10);
 let items = [];
 let idx = 0;
@@ -134,7 +134,7 @@ async function load(){
     thumb.alt = it.name;
     thumb.loading = 'lazy';
     thumb.decoding = 'async';
-    thumb.src = './thumbs/' + it.id + '.jpg?t=' + encodeURIComponent(it.modified);
+    thumb.src = './thumbs/' + (it.key || it.id) + '.jpg?t=' + encodeURIComponent(it.modified);
     thumb.onerror = () => {
       if(thumb.dataset.fb){ card.style.opacity = .3; return; }
       thumb.dataset.fb = '1';
@@ -155,7 +155,7 @@ function openLB(i){
   const it = items[i];
   const img = document.getElementById('lbImg');
   img.dataset.fb = '';
-  img.src = './full/' + it.id + (it.ext || '.jpg') + '?t=' + encodeURIComponent(it.modified);
+  img.src = './full/' + (it.key || it.id) + (it.ext || '.jpg') + '?t=' + encodeURIComponent(it.modified);
   img.onerror = () => {
     if(img.dataset.fb === 'thumb'){ img.src = ENDPOINT + '/' + it.full + '?t=' + encodeURIComponent(it.modified); return; }
     if(img.dataset.fb){ return; }
@@ -164,7 +164,7 @@ function openLB(i){
   };
   document.getElementById('lbName').textContent = it.name;
   const dl = document.getElementById('lbDownload');
-  dl.href = './full/' + it.id + (it.ext || '.jpg') + '?download=1&t=' + encodeURIComponent(it.modified);
+  dl.href = './full/' + (it.key || it.id) + (it.ext || '.jpg') + '?download=1&t=' + encodeURIComponent(it.modified);
   dl.setAttribute('download', it.name);
   updateNav();
   document.getElementById('lightbox').classList.add('show');
