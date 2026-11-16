@@ -9,7 +9,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  actions: write        # 需要刪除本 run 嘅重複 github-pages artifact
+  actions: write        # 刪除重複／輪詢 github-pages artifact
 
 concurrency:
   group: pages
@@ -27,8 +27,7 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
       # deploy-pages 要求「恰好一個」叫 github-pages 嘅 artifact。
-      # 重跑 job 會再上傳一個同名 artifact，多過一個就永遠 fail（Multiple artifacts named ...）。
-      # 所以上傳前先刪清本 run 嘅同名 artifact，保證之後只有一個。
+      # 重跑 job 會再上傳同名 artifact，多過一個就永遠 fail → 上傳前先清。
       - name: Clear stale github-pages artifacts
         uses: actions/github-script@v7
         with:
@@ -48,6 +47,36 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: '.'
+      # 上載完成同 artifacts API 見到之間有幾秒 eventual-consistency 延遲，
+      # deploy-pages 太早查就會見到 0 個（實測 2026-11-16 兩次都係咁）。
+      # 所以輪詢到見到為止，順手清走多出嚟嘅同名 artifact。
+      - name: Wait for github-pages artifact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const run_id = context.runId
+            const deadline = Date.now() + 120000
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+            while (Date.now() < deadline) {
+              const arts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+                owner, repo, run_id, per_page: 100,
+              })
+              const gh = arts.filter((a) => a.name === 'github-pages')
+              if (gh.length > 1) {
+                for (const a of gh.slice(0, -1)) {
+                  await github.rest.actions.deleteArtifact({ owner, repo, artifact_id: a.id })
+                  core.info(`removed duplicate artifact ${a.id}`)
+                }
+              }
+              if (gh.length >= 1) {
+                core.info(`github-pages artifact ready (${gh.length}, ${gh[gh.length - 1].size_in_bytes} bytes)`)
+                return
+              }
+              core.info('waiting for github-pages artifact to register…')
+              await sleep(5000)
+            }
+            core.setFailed('github-pages artifact did not register within 120s')
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
