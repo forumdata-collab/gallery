@@ -19,7 +19,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -71,6 +71,11 @@ jobs:
               }
               if (gh.length >= 1) {
                 core.info(`github-pages artifact ready (${gh.length}, ${gh[gh.length - 1].size_in_bytes} bytes)`)
+                // deploy-pages@v4 查嘅唔係 REST，而係 Actions Results（twirp）artifact service，
+                // 兩個 backend 各自 eventual-consistent。實測 REST 已經見到 8.1MB artifact，
+                // 0.35 秒後 deploy-pages 仍然報 Found 0 artifact(s) → 要等 index 追上。
+                core.info('settling 20s so the Actions Results artifact index catches up…')
+                await sleep(20000)
                 return
               }
               core.info('waiting for github-pages artifact to register…')
@@ -80,3 +85,13 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: Deploy to GitHub Pages (retry once)
+        id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+      - name: Fail if both deploy attempts failed
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry.outcome == 'failure'
+        run: |
+          echo "deploy-pages failed twice — see the errors above" >&2
+          exit 1
